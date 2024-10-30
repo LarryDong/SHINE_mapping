@@ -26,22 +26,24 @@ def run_shine_mapping_batch():
     if len(sys.argv) > 1:
         config.load(sys.argv[1])
     else:
-        sys.exit(
-            "Please provide the path to the config file.\nTry: python shine_batch.py xxx/xxx_config.yaml"
-        )
+        sys.exit("Please provide the path to the config file. \n Try: python shine_batch.py xxx/xxx_config.yaml")
     
     run_path = setup_experiment(config)
-    shutil.copy2(sys.argv[1], run_path) # copy the config file to the result folder
+    shutil.copy2(sys.argv[1], run_path) # copy the config file to the result folder     # shutil是python的标准文件拷贝/移动库
 
     dev = config.device
 
     # initialize the feature octree
     octree = FeatureOctree(config)
     # initialize the mlp decoder
+    
+    # geo_mlp的层次：输入8->32->32->1
     geo_mlp = Decoder(config, is_geo_encoder=True, is_time_conditioned=config.time_conditioned)
+    # sem_mlp的层次：输入8->32->32->21
     sem_mlp = Decoder(config, is_geo_encoder=False)
 
-    # load the decoder model
+    # load the decoder model.
+    # Batch模式是不载入 model的，重新训练。
     if config.load_model:
         loaded_model = torch.load(config.model_path)
         geo_mlp.load_state_dict(loaded_model["geo_decoder"])
@@ -67,8 +69,7 @@ def run_shine_mapping_batch():
     # for each frame
     print("Load, preprocess and sample data")
     for frame_id in tqdm(range(dataset.total_pc_count)):
-        if (frame_id < config.begin_frame or frame_id > config.end_frame or \
-            frame_id % config.every_frame != 0): 
+        if (frame_id < config.begin_frame or frame_id > config.end_frame or frame_id % config.every_frame != 0): 
             continue
         
         t0 = get_time()  
@@ -106,7 +107,7 @@ def run_shine_mapping_batch():
         
         T0 = get_time()
         # learning rate decay
-        step_lr_decay(opt, cur_base_lr, iter, config.lr_decay_step, config.lr_iters_reduce_ratio)
+        step_lr_decay(opt, cur_base_lr, iter, config.lr_decay_step, config.lr_iters_reduce_ratio)           # 在learning的过程中，learning rate随迭代次数变化。5000，10000，会缩减。
         
         # load batch data (avoid using dataloader because the data are already in gpu, memory vs speed)
         if config.ray_loss: # loss computed based on each ray   
@@ -205,7 +206,7 @@ def run_shine_mapping_batch():
 
         T4 = get_time()
 
-        opt.zero_grad(set_to_none=True)
+        opt.zero_grad(set_to_none=True)     # tensor如果是非标量，则需要设置zero_grad. 这里的tensor是cur_loss，由之前所有的feature和MLP网络
         cur_loss.backward()
         opt.step()
 
@@ -226,13 +227,14 @@ def run_shine_mapping_batch():
             wandb.log(wandb_log_content)
 
         # save checkpoint model
-        if (((iter+1) % config.save_freq_iters) == 0 and iter > 0):
+        if (((iter+1) % config.save_freq_iters) == 0 and iter > 0):         # 10000
             checkpoint_name = 'model/model_iter_' + str(iter+1)
             # octree.clear_temp()
             save_checkpoint(octree, geo_mlp, sem_mlp, opt, run_path, checkpoint_name, iter)
             save_decoder(geo_mlp, sem_mlp, run_path, checkpoint_name) # save both the gro and sem decoders
 
         # reconstruction by marching cubes
+        # 根据之前 mapping 时训练得到的 feature 和
         if (((iter+1) % config.vis_freq_iters) == 0 and iter > 0): 
             print("Begin mesh reconstruction from the implicit map")    
             if not config.time_conditioned:           

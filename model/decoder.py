@@ -8,8 +8,8 @@ from utils.config import SHINEConfig
 
 class Decoder(nn.Module):
     def __init__(self, config: SHINEConfig, is_geo_encoder = True, is_time_conditioned = False): 
-        
-        super().__init__()
+        # 这个decoder貌似还预测了语义标签
+        super().__init__()          # 调用父类的初始化方法
         
         if is_geo_encoder:
             mlp_hidden_dim = config.geo_mlp_hidden_dim
@@ -27,13 +27,13 @@ class Decoder(nn.Module):
         # predict sdf (now it anyway only predict sdf without further sigmoid
         # Initializa the structure of shared MLP
         layers = []
-        for i in range(mlp_level):
+        for i in range(mlp_level):          # 添加隐藏层hidden layer，论文/代码中使用2层。  输入L=8 -> HiddenLayer1=32 -> 
             if i == 0:
-                layers.append(nn.Linear(input_layer_count, mlp_hidden_dim, mlp_bias_on))
+                layers.append(nn.Linear(input_layer_count, mlp_hidden_dim, mlp_bias_on))    # 输入和hiddenlayer1之间是，L=8 连接 dim=32
             else:
-                layers.append(nn.Linear(mlp_hidden_dim, mlp_hidden_dim, mlp_bias_on))
+                layers.append(nn.Linear(mlp_hidden_dim, mlp_hidden_dim, mlp_bias_on))       # hiddenlayer之间，是 dim=32 连接 dim=32
         self.layers = nn.ModuleList(layers)
-        self.lout = nn.Linear(mlp_hidden_dim, 1, mlp_bias_on)
+        self.lout = nn.Linear(mlp_hidden_dim, 1, mlp_bias_on)                               # hiddenlayer最后一层(2)，和输出层，是 dim=32 -> 1
         self.nclass_out = nn.Linear(mlp_hidden_dim, config.sem_class_count + 1, mlp_bias_on) # sem class + free space class
         # self.bn = nn.BatchNorm1d(self.hidden_dim, affine=False)
 
@@ -62,7 +62,7 @@ class Decoder(nn.Module):
 
         return out
     
-    def time_conditionded_sdf(self, sum_features, ts):
+    def time_conditionded_sdf(self, sum_features, ts):      # 预测“时间条件下的SDF”值
         time_conditioned_feature = torch.torch.cat((sum_features, ts.view(-1, 1)), dim=1)
 
         for k, l in enumerate(self.layers):

@@ -57,7 +57,7 @@ class LiDARDataset(Dataset):
 
         # initialize the data sampler
         self.sampler = dataSampler(config)
-        self.ray_sample_count = config.surface_sample_n + config.free_sample_n
+        self.ray_sample_count = config.surface_sample_n + config.free_sample_n      # 沿free-space和surface的两个采样点数。论文是4，代码是3
 
         # merged downsampled point cloud
         self.map_down_pc = o3d.geometry.PointCloud()
@@ -100,7 +100,7 @@ class LiDARDataset(Dataset):
             self.pool_device = config.device
             self.to_cpu = False
 
-        # data pool
+        # data pool     ISSUE: 不知道pool指的是什么。
         self.coord_pool = torch.empty((0, 3), device=self.pool_device, dtype=self.dtype)
         self.sdf_label_pool = torch.empty((0), device=self.pool_device, dtype=self.dtype)
         self.normal_label_pool = torch.empty((0, 3), device=self.pool_device, dtype=self.dtype)
@@ -114,7 +114,7 @@ class LiDARDataset(Dataset):
 
     def process_frame(self, frame_id, incremental_on = False):
 
-        pc_radius = self.config.pc_radius
+        pc_radius = self.config.pc_radius               # pc_radius=50
         min_z = self.config.min_z
         max_z = self.config.max_z
         normal_radius_m = self.config.normal_radius_m
@@ -124,7 +124,7 @@ class LiDARDataset(Dataset):
         sor_nn = self.config.sor_nn
         sor_std = self.config.sor_std
 
-        self.cur_pose_ref = self.poses_ref[frame_id]
+        self.cur_pose_ref = self.poses_ref[frame_id]        # 获取每一个scan/frame的位姿
 
         # load point cloud (support *pcd, *ply and kitti *bin format)
         frame_filename = os.path.join(self.config.pc_path, self.pc_filenames[frame_id])
@@ -154,7 +154,7 @@ class LiDARDataset(Dataset):
             # random downsampling
             frame_pc = frame_pc.random_down_sample(sampling_ratio=rand_down_r)
         else:
-            # voxel downsampling
+            # voxel downsampling        5cm
             frame_pc = frame_pc.voxel_down_sample(voxel_size=vox_down_m)
 
         # apply filter (optional)
@@ -186,7 +186,7 @@ class LiDARDataset(Dataset):
         self.map_bbx = self.map_down_pc.get_axis_aligned_bounding_box()
         self.cur_bbx = self.cur_frame_pc.get_axis_aligned_bounding_box()
         # and scale to [-1,1] coordinate system
-        frame_pc_s = frame_pc.scale(self.config.scale, center=(0,0,0))
+        frame_pc_s = frame_pc.scale(self.config.scale, center=(0,0,0))      # 这个scale是把真实世界缩放到 0~1，用于 kaolin 这个库
 
         frame_pc_s_torch = torch.tensor(np.asarray(frame_pc_s.points), dtype=self.dtype, device=self.pool_device)
 
@@ -201,9 +201,9 @@ class LiDARDataset(Dataset):
         # print("Frame point cloud count:", frame_pc_s_torch.shape[0])
 
         # sampling the points
-        (coord, sdf_label, normal_label, sem_label, weight, sample_depth, ray_depth) = \
-            self.sampler.sample(frame_pc_s_torch, frame_origin_torch, \
-            frame_normal_torch, frame_label_torch)
+        # 通过sample方法，直接将整个点云采样整理成各种tensor
+        (coord, sdf_label, normal_label, sem_label, weight, sample_depth, ray_depth) \
+            = self.sampler.sample(frame_pc_s_torch, frame_origin_torch, frame_normal_torch, frame_label_torch)
         
         origin_repeat = frame_origin_torch.repeat(coord.shape[0], 1)
         time_repeat = torch.tensor(frame_id, dtype=self.dtype, device=self.pool_device).repeat(coord.shape[0])

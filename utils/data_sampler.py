@@ -15,10 +15,7 @@ class dataSampler():
 
 
     # input and output are all torch tensors
-    def sample(self, points_torch, 
-               sensor_origin_torch,
-               normal_torch,
-               sem_label_torch):
+    def sample(self, points_torch, sensor_origin_torch, normal_torch, sem_label_torch):
 
         dev = self.dev
 
@@ -42,7 +39,7 @@ class dataSampler():
         distances = torch.linalg.norm(shift_points, dim=1, keepdim=True) # ray distances (scaled)
         
         # Part 1. close-to-surface uniform sampling 
-        # uniform sample in the close-to-surface range (+- range)
+        # uniform sample in the close-to-surface range (+- range)  # 每个点附近采3个，所以随机正负范围内采样
         surface_sample_displacement = (torch.rand(point_num*surface_sample_n, 1, device=dev)-0.5)*2*surface_sample_range_scaled 
         
         repeated_dist = distances.repeat(surface_sample_n,1)
@@ -87,7 +84,7 @@ class dataSampler():
         # sigma_tensor = ray_sigma.repeat(all_sample_n,1).squeeze(1)
 
         # get the weight vector as the inverse of sigma
-        weight_tensor = torch.ones_like(depths_tensor)
+        weight_tensor = torch.ones_like(depths_tensor)      # 创建和xxx形状、类型一样的，全1
 
         # behind surface weight drop-off because we have less uncertainty behind the surface
         if self.config.behind_dropoff_on:
@@ -104,7 +101,7 @@ class dataSampler():
         
         # ray-wise depth
         distances /= world_scale # unit: m
-        distances = distances.squeeze(1)
+        distances = distances.squeeze(1)        # 删除所有维度为1的维度
 
         # assign sdf labels to the samples
         # projective distance as the label: behind +, in-front - 
@@ -120,8 +117,7 @@ class dataSampler():
         if sem_label_torch is not None:
             sem_label_tensor = torch.cat((surface_sem_label_tensor, clearance_sem_label_tensor, free_sem_label_tensor),0).int()
 
-        # Convert from the all ray surface + all ray free order to the 
-        # ray-wise (surface + free) order
+        # Convert from the all ray surface + all ray free order to the ray-wise (surface + free) order
         all_sample_points = all_sample_points.reshape(all_sample_n, -1, 3).transpose(0, 1).reshape(-1, 3)
         sdf_label_tensor = sdf_label_tensor.reshape(all_sample_n, -1).transpose(0, 1).reshape(-1) 
         
@@ -135,8 +131,7 @@ class dataSampler():
 
         # ray distance (distances) is not repeated
 
-        return all_sample_points, sdf_label_tensor, normal_label_tensor, sem_label_tensor, \
-            weight_tensor, depths_tensor, distances
+        return all_sample_points, sdf_label_tensor, normal_label_tensor, sem_label_tensor, weight_tensor, depths_tensor, distances
     
 
     # space carving sampling (deprecated, to polish)

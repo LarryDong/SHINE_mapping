@@ -153,7 +153,7 @@ class FeatureOctree(nn.Module):
                 new_fts = self.feature_std*torch.randn(new_feature_num+1, self.feature_dim, device=self.device) 
                 new_fts[-1] = torch.zeros(1,self.feature_dim)
                 cur_featured_level = i-self.free_level_num
-                self.hier_features[cur_featured_level] = nn.Parameter(torch.cat((self.hier_features[cur_featured_level][:-1],new_fts),0))
+                self.hier_features[cur_featured_level] = nn.Parameter(torch.cat((self.hier_features[cur_featured_level][:-1],new_fts),0))   # 把new_fts添加到当前层次的feature中。
                 if incremental_on:
                     new_weights = torch.zeros(new_feature_num+1, self.feature_dim, device=self.device)
                     self.importance_weight[cur_featured_level] = torch.cat((self.importance_weight[cur_featured_level][:-1],new_weights),0)
@@ -223,7 +223,7 @@ class FeatureOctree(nn.Module):
         # TODO: filter the -1 idx for faster back-propgation
         sum_features = torch.zeros(coord.shape[0], self.feature_dim, device=self.device)
         for i in range(self.featured_level_num): # for each level
-            current_level = self.max_level - i
+            current_level = self.max_level - i                  # max_level是八叉树的最大深度，为12。这里从12深度取特征，做feature_level的2；然后11->1, 10->0。再把feature相加。
             feature_level = self.featured_level_num-i-1
             # Interpolating
             # get the interpolation coefficients for the 8 neighboring corners, corresponding to the order of the hierarchical_indices
